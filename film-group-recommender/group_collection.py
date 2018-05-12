@@ -13,24 +13,25 @@ class GroupCollection:
         self.groups = []
 
     def create(self, users_number, disjoint=True):
-        avbl_users = [i for i in range(users_number)]
+        print('Creating', self.collection_size, 'groups of size', self.groups_size)
         groups = []
-        testable_threshold = 50
+        subset_threshold = 50
+        users_ids = [i for i in range(users_number)]
 
-        iter_idx = 0
-        while iter_idx in range(self.collection_size):
-            group_members = numpy.random.choice(avbl_users, size=self.groups_size, replace=False)
+        group_count = 0
+        while group_count in range(self.collection_size):
+            user_id_fold = numpy.random.choice(users_ids, size=self.groups_size, replace=False)
 
-            candidate_items = Group.find_members_subset(self.train_ratings, group_members)
-            non_evaluable_items = Group.find_members_subset(self.test_ratings, group_members)
-            testable_items = numpy.setdiff1d(candidate_items, non_evaluable_items)
+            train_subset = Group.get_ratings_subset(self.train_ratings, user_id_fold)
+            test_subset = Group.get_ratings_subset(self.test_ratings, user_id_fold)
 
-            if len(candidate_items) != 0 and len(testable_items) >= testable_threshold:
+            subset_intersection = numpy.setdiff1d(train_subset, test_subset)
 
-                groups += [Group(group_members, candidate_items, self.train_ratings)]
+            if len(train_subset) != 0 and len(subset_intersection) >= subset_threshold:
+                groups += [Group(user_id_fold, train_subset, self.train_ratings)]
 
                 if disjoint:
-                    avbl_users = numpy.setdiff1d(avbl_users, group_members)
-                iter_idx += 1
+                    users_ids = numpy.setdiff1d(users_ids, user_id_fold)
+                group_count += 1
 
         self.groups = groups

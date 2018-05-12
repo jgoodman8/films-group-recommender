@@ -1,7 +1,7 @@
 import numpy
 import pandas
 
-train_file = '../../data-sets/movie-lens-100k/u1.test'
+train_file = '../../data-sets/movie-lens-100k/u1.base'
 test_file = '../../data-sets/movie-lens-100k/u1.test'
 
 
@@ -12,15 +12,15 @@ class Ratings:
         self.ratings_mean = 0
 
         # TODO: Move
-        self.learning_rate = 0.1
-        self.lambda_parameter = 0.05
-        self.maximum_iterations = 3
-        self.factors_number = 5
+        self.learning_rate = 0.05
+        self.lambda_parameter = 0.1
+        self.maximum_iterations = 5
+        self.factors_number = 15
+
+        self.users_number = 0
+        self.items_number = 0
 
         self.load_data()
-
-        self.users_number = self.train_ratings.shape[0]
-        self.items_number = self.train_ratings.shape[1]
 
         self.user_biases = numpy.zeros(self.users_number)
         self.item_biases = numpy.zeros(self.items_number)
@@ -35,15 +35,14 @@ class Ratings:
         train_csv = pandas.read_csv(train_file, sep=separator, names=headers)
         test_csv = pandas.read_csv(test_file, sep=separator, names=headers)
 
+        self.users_number = max(train_csv.user_id.unique())
+        self.items_number = max(train_csv.item_id.unique())
+
         self.train_ratings = self.convert_to_matrix(train_csv)
         self.test_ratings = self.convert_to_matrix(test_csv)
 
-    @staticmethod
-    def convert_to_matrix(data_set):
-        total_users_count = max(data_set.user_id.unique())
-        total_items_count = max(data_set.item_id.unique())
-
-        matrix = numpy.zeros(total_users_count, total_items_count)
+    def convert_to_matrix(self, data_set):
+        matrix = numpy.zeros((self.users_number, self.items_number))
 
         for row in data_set.itertuples(index=False):
             matrix[row.user_id - 1, row.item_id - 1] = row.rating
@@ -62,29 +61,37 @@ class Ratings:
         ratings_row, ratings_column = self.train_ratings.nonzero()
         total_ratings = len(ratings_row)
 
-        for iteration in range(self.maximum_iterations):
+        try:
+            for iteration in range(self.maximum_iterations):
 
-            rating_indexes = numpy.arange(total_ratings)
-            numpy.random.shuffle(rating_indexes)
+                rating_indexes = numpy.arange(total_ratings)
+                numpy.random.shuffle(rating_indexes)
 
-            for index in rating_indexes:
-                user = ratings_row[index]
-                item = ratings_column[index]
+                for index in rating_indexes:
+                    user = ratings_row[index]
+                    item = ratings_column[index]
 
-                predictions = self.predict_rating_for_user_and_item(user, item)
-                error = self.train_ratings[user][item] - predictions
+                    prediction = self.predict_rating_for_user_and_item(user, item)
+                    error = self.train_ratings[user][item] - prediction
 
-                self.user_factors[user] += self.get_user_factors_update(item, user, error)
-                self.item_factors[item] += self.get_item_factors_update(item, user, error)
+                    self.user_factors[user] += self.get_user_factors_update(item, user, error)
+                    self.item_factors[item] += self.get_item_factors_update(item, user, error)
 
-                self.user_biases[user] += self.get_user_biases_update(user, error)
-                self.item_biases[item] += self.get_item_biases_update(item, error)
+                    self.user_biases[user] += self.get_user_biases_update(user, error)
+                    self.item_biases[item] += self.get_item_biases_update(item, error)
 
+        except FloatingPointError:
+            print("Error ...")
+
+    # PRIVATE METHODS BELOW
     def get_user_factors_update(self, item, user, error):
         return self.learning_rate * (self.get_user_loss(item, error) - self.get_user_regularization(user))
 
     def get_item_factors_update(self, item, user, error):
-        return self.learning_rate * (self.get_item_loss(user, error) - self.get_item_regularization(item))
+        try:
+            return self.learning_rate * (self.get_item_loss(user, error) - self.get_item_regularization(item))
+        except Exception as w:
+            print(w)
 
     def get_user_biases_update(self, user, error):
         return self.learning_rate * (error - self.lambda_parameter * self.user_biases[user])
@@ -92,15 +99,20 @@ class Ratings:
     def get_item_biases_update(self, item, error):
         return self.learning_rate * (error - self.lambda_parameter * self.item_biases[item])
 
-    # PRIVATE METHODS BELOW
     def get_user_regularization(self, user):
         return self.lambda_parameter * self.user_factors[user]
 
     def get_item_regularization(self, item):
-        return self.lambda_parameter * self.user_factors[item]
+        return self.lambda_parameter * self.item_factors[item]
 
     def get_user_loss(self, item, error):
-        return error * self.item_factors[item]
+        try:
+            return error * self.item_factors[item]
+        except Warning as w:
+            print(w)
 
     def get_item_loss(self, user, error):
-        return error * self.user_factors[user]
+        try:
+            return error * self.user_factors[user]
+        except Exception as w:
+            print(w)
